@@ -1,0 +1,174 @@
+<template>
+  <div class="room">
+    <v-container>
+      <v-row>
+        <v-col>
+          <video ref="localVideo"></video>
+          <v-text-field v-model="roomName" single-line></v-text-field>
+          <v-btn @click="join">Join</v-btn>
+          <v-btn @click="leave">Leave</v-btn>        
+        </v-col>
+        <v-col>
+          <v-row>
+            <v-textarea v-model="textField" outlined readonly></v-textarea>
+          </v-row>
+          <v-row>
+            <v-text-field v-model="message" single-line></v-text-field>
+            <v-btn @click="send">Send</v-btn>
+          </v-row>
+          <v-row>
+            <!--<video width="320" height="240" ref="remoteVideo"></video>-->
+          </v-row>
+          <v-row>
+            <v-btn @click="prev">Prev</v-btn>        
+            <v-btn @click="next">Next</v-btn>
+          </v-row>
+        </v-col>
+      </v-row>
+    </v-container>
+  </div>
+</template>
+
+<script>
+
+export default {
+  name: 'Room',
+  props: {
+  },
+  data: function () {
+    return {
+      roomName: 'test',
+      textField: '',
+      message: '',
+      remoteVideos: [],
+      localStream: null,
+      room: null
+    }
+  },
+  methods: {
+    open: function () {
+      this.textField += '=== You joined ===\n'
+    },
+    peerLeave: function (peerId) {
+      this.textField += `=== ${peerId} left ===\n`;
+
+      const remoteVideoIdx = this.remoteVideos.findIndex(v => v.srcObject.peerId===peerId)
+      const remoteVideo = this.remoteVideos[remoteVideoIdx]
+      remoteVideo.srcObject.getTracks().forEach(track => track.stop())
+      remoteVideo.srcObject = null
+      this.remoteVideos.splice(remoteVideoIdx, 1);
+    },
+    peerJoin: function (peerId) {
+      this.textField += `=== ${peerId} joined ===\n`
+    },
+    recieveData: function(data, src) {
+      this.textField += `${src}: ${data}\n`
+    },
+    newStream: function (stream) {
+      this.textField += `=== new stream ===\n`;
+      console.log(stream)
+
+      const newVideo = document.createElement('video')
+      newVideo.srcObject = stream
+      newVideo.playsInline = true
+      newVideo.play()
+      this.remoteVideos.push(newVideo)
+    },
+    close: function () {
+      this.textField += '== You left ===\n'
+      this.remoteVideos.forEach(remoteVideo => {
+        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+        remoteVideo.srcObject = null;
+      })
+      this.remoteVideos = []
+    },
+    join: async function () {
+      console.log('join')
+      if (!this.peer.open) {
+        console.log('Peer is not opened')
+        return
+      }
+
+      const payload = {mode: 'mesh', stream: this.localStream}
+      this.room = this.peer.joinRoom(this.roomName, payload)
+
+      this.room.once('open', this.open)
+      this.room.on('peerJoin', this.peerJoin)
+      this.room.on('data', this.reciveData)
+      this.room.on('peerLeave', this.peerLeave)
+      this.room.once('close', this.close)
+      this.room.on('stream', this.newStream)
+    },
+    leave: function () {
+      console.log('leave')
+      this.room.close()
+    },
+    send: function () {
+      console.log('send')
+      this.textField += this.message + '\n'
+      this.room.send(this.message)
+      this.message = '';
+    },
+    next: function () {
+      //let remoteVideo = this.$refs.remoteVideo
+
+      //if (this.streams.length > 0 && remoteVideo.srcObject) {
+      //  const currentPeerId = remoteVideo.srcObject.peerId
+      //  let currentIndex = this.streams.findIndex(s => s.peerId===currentPeerId)
+      //  
+      //  currentIndex += 1
+      //  if (currentIndex >= this.streams.length) {
+      //    currentIndex = 0
+      //  }
+
+      //  remoteVideo.srcObject = this.streams[currentIndex]
+      //  remoteVideo.play()
+      //  
+      //  this.textField += remoteVideo.srcObject.peerId + '\n'
+      //}
+    },
+    prev: function () {
+      //let remoteVideo = this.$refs.remoteVideo
+
+      //if (this.streams.length > 0 && remoteVideo.srcObject) {
+      //  const currentPeerId = remoteVideo.srcObject.peerId
+      //  let currentIndex = this.streams.findIndex(s => s.peerId===currentPeerId)
+      //  
+      //  currentIndex -= 1
+      //  if (currentIndex < 0) {
+      //    currentIndex = this.streams.length - 1
+      //  }
+
+      //  remoteVideo.srcObject = this.streams[currentIndex]
+      //  remoteVideo.play()
+
+      //  this.textField += remoteVideo.srcObject.peerId + '\n'
+      //}
+    },
+    initialize: async function () {
+      let param = {
+        audio: true,
+        video: true
+      }
+      this.localStream = await navigator.mediaDevices.getUserMedia(param).catch(console.error);
+      
+      let localVideo = this.$refs.localVideo
+      localVideo.muted = true
+      localVideo.srcObject = this.localStream
+      localVideo.playsInline = true
+
+      //let remoteVideo = this.$refs.remoteVideo
+      //remoteVideo.playsInline = true
+
+      await localVideo.play().catch(console.error);
+      //await remoteVideo.play().catch(console.error);
+    }
+  },
+  mounted : function() {
+    this.initialize().then(() => {})
+  },
+  destroyed () {
+    this.leave()
+  }
+}
+</script>
