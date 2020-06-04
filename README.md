@@ -1,4 +1,4 @@
-# spatial-voice-chat
+# skyway-room-vue
 
 ## Project setup
 ```
